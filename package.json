@@ -3,6 +3,10 @@
   "displayName": "Ozeki AI ",
   "description": "Ozeki AI for VS Code allows you to connect to the Ozeki AI Server, providing code suggestions, debugging help, and explanations via API keys.",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ozekiweb/AIVSCodePlugin"
+  },
   "publisher": "nagygergely244",
   "engines": {
     "vscode": "^1.96.0"

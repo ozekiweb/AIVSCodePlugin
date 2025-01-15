@@ -3,118 +3,118 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 interface Settings {
-    apiUrl: string;
-    apiKey: string;
+	apiUrl: string;
+	apiKey: string;
 }
 
 let settings: Settings | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
-    console.log('Ozeki Ai is now active!');
+	console.log('Ozeki Ai is now active!');
 
-   // Check if the global storage folder exists, if not create it
-    const globalStoragePath = context.globalStorageUri.fsPath;
-    if (!fs.existsSync(globalStoragePath)) {
-        console.log('No global storage folder found, creating a new one.');
-        fs.mkdirSync(globalStoragePath, { recursive: true });
-        console.log('Created new global storage folder');
-    }
+	// Check if the global storage folder exists, if not create it
+	const globalStoragePath = context.globalStorageUri.fsPath;
+	if (!fs.existsSync(globalStoragePath)) {
+		console.log('No global storage folder found, creating a new one.');
+		fs.mkdirSync(globalStoragePath, { recursive: true });
+		console.log('Created new global storage folder');
+	}
 
-    // Check if settings file exists, if not create it
-    const settingsPath = path.join(globalStoragePath, 'settings.json');
-    if (!fs.existsSync(settingsPath)) {
-        console.log('No settings.json file found, creating a new one.');
-        const defaultSettings = { apiUrl: '', apiKey: '' };
-        fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
-        console.log('Created new settings.json file');
-        console.log('Settings path:', settingsPath);
-    }
+	// Check if settings file exists, if not create it
+	const settingsPath = path.join(globalStoragePath, 'settings.json');
+	if (!fs.existsSync(settingsPath)) {
+		console.log('No settings.json file found, creating a new one.');
+		const defaultSettings = { apiUrl: '', apiKey: '' };
+		fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+		console.log('Created new settings.json file');
+		console.log('Settings path:', settingsPath);
+	}
 
-    // Load settings from settings.json file, or get input from user
-    try {
-        const fileContent = fs.readFileSync(settingsPath, 'utf8');
-        settings = JSON.parse(fileContent);
-        console.log('Settings loaded from file:', settings);
-    } catch (error) {
-        console.error('Failed to load settings:', error);
-    }
+	// Load settings from settings.json file, or get input from user
+	try {
+		const fileContent = fs.readFileSync(settingsPath, 'utf8');
+		settings = JSON.parse(fileContent);
+		console.log('Settings loaded from file:', settings);
+	} catch (error) {
+		console.error('Failed to load settings:', error);
+	}
 
-    const createChatPanel = async () => {
-        if (!settings || !settings.apiUrl || !settings.apiKey) {
-            await showSettingsDialog(context);
-        }
+	const createChatPanel = async () => {
+		if (!settings || !settings.apiUrl || !settings.apiKey) {
+			await showSettingsDialog(context);
+		}
 
-        const panel = vscode.window.createWebviewPanel(
-            'ozekiAIChat',
-            'Ozeki AI Chat',
-            vscode.ViewColumn.Two,
-            {
-                enableScripts: true,
-                retainContextWhenHidden: true
-            }
-        );
-        panel.webview.html = getWebviewContent();
+		const panel = vscode.window.createWebviewPanel(
+			'ozekiAIChat',
+			'Ozeki AI Chat',
+			vscode.ViewColumn.Two,
+			{
+				enableScripts: true,
+				retainContextWhenHidden: true
+			}
+		);
+		panel.webview.html = getWebviewContent();
 
-        // Handle messages from the webview
-        panel.webview.onDidReceiveMessage(
-            async message => {
-                switch (message.type) {
-                    case 'message':
-                        try {
-                            const response = await sendApiRequest(message.text);
-                            panel.webview.postMessage({ 
-                                type: 'response', 
-                                text: response 
-                            });
-                        } catch (error) {
-                            vscode.window.showErrorMessage('Failed to send message: ' + error);
-                        }
-                        break;
-                }
-            },
-            undefined,
-            context.subscriptions
-        );
-    };
+		// Handle messages from the webview
+		panel.webview.onDidReceiveMessage(
+			async message => {
+				switch (message.type) {
+					case 'message':
+						try {
+							const response = await sendApiRequest(message.text);
+							panel.webview.postMessage({
+								type: 'response',
+								text: response
+							});
+						} catch (error) {
+							vscode.window.showErrorMessage('Failed to send message: ' + error);
+						}
+						break;
+				}
+			},
+			undefined,
+			context.subscriptions
+		);
+	};
 
-    let disposable = vscode.commands.registerCommand('ozeki-ai.startChat', createChatPanel);
-    let settingsCommand = vscode.commands.registerCommand('ozeki-ai.settings', showSettingsDialog);
-    context.subscriptions.push(disposable, settingsCommand);
-    createChatPanel();
+	let disposable = vscode.commands.registerCommand('ozeki-ai.startChat', createChatPanel);
+	let settingsCommand = vscode.commands.registerCommand('ozeki-ai.settings', showSettingsDialog);
+	context.subscriptions.push(disposable, settingsCommand);
+	createChatPanel();
 }
 
-	// Show settings dialog to configure API URL and API Key, and save them to settings.json
+// Show settings dialog to configure API URL and API Key, and save them to settings.json
 async function showSettingsDialog(context: vscode.ExtensionContext) {
-    const apiUrl = await vscode.window.showInputBox({
-        prompt: 'Enter API URL',
-        placeHolder: 'https://api.example.com/chat',
-        value: settings?.apiUrl || ''
-    });
+	const apiUrl = await vscode.window.showInputBox({
+		prompt: 'Enter API URL',
+		placeHolder: 'https://api.example.com/chat',
+		value: settings?.apiUrl || ''
+	});
 
-    if (!apiUrl) {
-        throw new Error('API URL is required');
-    }
+	if (!apiUrl) {
+		throw new Error('API URL is required');
+	}
 
-    const apiKey = await vscode.window.showInputBox({
-        prompt: 'Enter API Key',
-        placeHolder: 'your-api-key',
-        value: settings?.apiKey || ''
-    });
+	const apiKey = await vscode.window.showInputBox({
+		prompt: 'Enter API Key',
+		placeHolder: 'your-api-key',
+		value: settings?.apiKey || ''
+	});
 
-    if (!apiKey) {
-        throw new Error('API Key is required');
-    }
-	
+	if (!apiKey) {
+		throw new Error('API Key is required');
+	}
+
 	const updatedApiUrl = `${apiUrl}?command=chatgpt`;
-    settings = { apiUrl: updatedApiUrl, apiKey };
-    const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
-    fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-    console.log('Settings saved to:', settingsPath);
+	settings = { apiUrl: updatedApiUrl, apiKey };
+	const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
+	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+	console.log('Settings saved to:', settingsPath);
 
-    vscode.window.showInformationMessage('Settings saved successfully!');
+	vscode.window.showInformationMessage('Settings saved successfully!');
 }
 
-	// Send a message to the API and return the response, formatted the response
+// Send a message to the API and return the response, formatted the response
 async function sendApiRequest(message: string): Promise<string> {
 	if (!settings) {
 		throw new Error('Settings not configured');
@@ -180,10 +180,10 @@ async function sendApiRequest(message: string): Promise<string> {
 
 			// Format the response, so it looks better in the chat
 			formattedResponse = formattedResponse
-				.replace(/\*\*/g, '')  
-				.replace(/\\n/g, '\n')  
-				.replace(/\n{3,}/g, '\n\n')  
-				.trim();  
+				.replace(/\*\*/g, '')
+				.replace(/\\n/g, '\n')
+				.replace(/\n{3,}/g, '\n\n')
+				.trim();
 
 			return formattedResponse;
 		} catch (parseError) {
@@ -195,7 +195,7 @@ async function sendApiRequest(message: string): Promise<string> {
 		throw error;
 	}
 }
-	// Create the webview content, including the chat UI and message handling logic
+// Create the webview content, including the chat UI and message handling logic
 function getWebviewContent() {
 	return `
 		<!DOCTYPE html>
