@@ -12,7 +12,7 @@
 ## Quick steps
 **To use OZEKI AI Extension:**
 - [Create your chatbot, and get your API url and key](https://ozeki.chat/p_8474-setup-your-local-ai-llms-on-windows.html)
-- Download the extension from [Marketplace](https://marketplace.visualstudio.com/manage/publishers/nagygergely244/extensions/ozeki-ai/hub)
+- Download the extension from [Marketplace](https://marketplace.visualstudio.com/items?itemName=nagygergely244.ozeki-ai)
 - Open VS Code and press CTRL + SHIFT + P and write: **Start Ozeki AI Chat**
 - In the input add the API URL and key
 - Start chatting with your bot 
