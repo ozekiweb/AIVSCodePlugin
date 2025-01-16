@@ -5,6 +5,7 @@ import * as fs from 'fs';
 interface Settings {
 	apiUrl: string;
 	apiKey: string;
+	modelName: string;
 }
 
 let settings: Settings | null = null;
@@ -24,7 +25,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const settingsPath = path.join(globalStoragePath, 'settings.json');
 	if (!fs.existsSync(settingsPath)) {
 		console.log('No settings.json file found, creating a new one.');
-		const defaultSettings = { apiUrl: '', apiKey: '' };
+		const defaultSettings = { apiUrl: '', apiKey: '', modelName: '' };
 		fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
 		console.log('Created new settings.json file');
 		console.log('Settings path:', settingsPath);
@@ -83,12 +84,13 @@ export function activate(context: vscode.ExtensionContext) {
 	createChatPanel();
 }
 
-// Show settings dialog to configure API URL and API Key, and save them to settings.json
+// Show settings dialog to configure API URL, API Key, model name and save them to settings.json
 async function showSettingsDialog(context: vscode.ExtensionContext) {
 	const apiUrl = await vscode.window.showInputBox({
 		prompt: 'Enter API URL',
 		placeHolder: 'https://api.example.com/chat?',
-		value: settings?.apiUrl || ''
+		value: settings?.apiUrl || '',
+		ignoreFocusOut: true
 	});
 
 	if (!apiUrl) {
@@ -98,14 +100,27 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 	const apiKey = await vscode.window.showInputBox({
 		prompt: 'Enter API Key',
 		placeHolder: 'your-api-key',
-		value: settings?.apiKey || ''
+		value: settings?.apiKey || '',
+		ignoreFocusOut: true
 	});
 
 	if (!apiKey) {
 		throw new Error('API Key is required');
 	}
+
+	const modelName = await vscode.window.showInputBox({
+		prompt: 'Enter Model Name (default: Nemotron-70B)',
+		placeHolder: 'Nemotron-70B',
+		value: settings?.modelName || '',
+		ignoreFocusOut: true
+	});
+
 	const updatedApiUrl = `${apiUrl}command=chatgpt`;
-	settings = { apiUrl: updatedApiUrl, apiKey };
+	settings = {
+		apiUrl: updatedApiUrl,
+		apiKey,
+		modelName: modelName || 'Nemotron-70B'
+	};
 	const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
 	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 	console.log('Settings saved to:', settingsPath);
@@ -120,7 +135,7 @@ async function sendApiRequest(message: string): Promise<string> {
 
 	try {
 		const requestBody = {
-			"model": "Nemotron-70B",
+			"model": settings.modelName || "Nemotron-70B",
 			"messages": [
 				{
 					"role": "system",
