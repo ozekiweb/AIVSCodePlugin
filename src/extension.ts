@@ -87,7 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
 async function showSettingsDialog(context: vscode.ExtensionContext) {
 	const apiUrl = await vscode.window.showInputBox({
 		prompt: 'Enter API URL',
-		placeHolder: 'https://api.example.com/chat',
+		placeHolder: 'https://api.example.com/chat?',
 		value: settings?.apiUrl || ''
 	});
 
@@ -104,7 +104,7 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 	if (!apiKey) {
 		throw new Error('API Key is required');
 	}
-	const updatedApiUrl = `${apiUrl}?command=chatgpt`;
+	const updatedApiUrl = `${apiUrl}command=chatgpt`;
 	settings = { apiUrl: updatedApiUrl, apiKey };
 	const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
 	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
