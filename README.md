@@ -26,9 +26,15 @@ Here are the steps to how to use the extension:
 **Then start the command for the AI chat:**
 ![start ozeki command](resources/start-ai-chat-command.png)
 ### Step 3
-**Get your API URL and key ready, because the next step is to input them:**
-![input api url and key](resources/add-api-info.png)
+**Select the authentication method.**
+![select method](resources/select-method.png)
 ### Step 4
+**Get your API URL and key ready, because the next step is to input them:**
+![input api url and key](resources/add-api-settings.png)
+
+**Or you can add your HTTP username and password:**
+![input http settings](resources/add-http-settings.png)
+### Step 5
 **Last step, write your prompt in the chat, press send and get your AI generated answer:**
 ![start chatting with ai](resources/ozeki-ai-chat.png)
 

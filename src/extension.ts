@@ -1,6 +1,9 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { getWebviewContent } from './chatBox';
+import { ChatLogger } from './chatLogger';
+import { getRatingWebviewContent } from './ratingWindow';
 
 interface Settings {
 	apiUrl: string;
@@ -9,7 +12,6 @@ interface Settings {
 	credentials?: string;
 	authType: 'apiKey' | 'credentials';
 }
-
 let settings: Settings | null = null;
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -65,6 +67,7 @@ export async function activate(context: vscode.ExtensionContext) {
 			}
 		);
 		panel.webview.html = getWebviewContent();
+		const logger = new ChatLogger(context.globalStorageUri.fsPath);
 
 		// Handle messages from the webview
 		panel.webview.onDidReceiveMessage(
@@ -72,7 +75,14 @@ export async function activate(context: vscode.ExtensionContext) {
 				switch (message.type) {
 					case 'message':
 						try {
+							// Log user message
+							logger.logMessage(message.text, true);
+
 							const response = await sendApiRequest(message.text);
+
+							// Log assistant response
+							logger.logMessage(response, false);
+
 							panel.webview.postMessage({
 								type: 'response',
 								text: response
@@ -86,6 +96,10 @@ export async function activate(context: vscode.ExtensionContext) {
 			undefined,
 			context.subscriptions
 		);
+
+		panel.onDidDispose(() => {
+			showRatingWindow(context, logger);
+		});
 	};
 
 	let disposable = vscode.commands.registerCommand('ozeki-ai.startChat', createChatPanel);
@@ -183,14 +197,12 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 		}
 		credentials = Buffer.from(`${username}:${password}`).toString('base64');
 	}
-
 	const modelName = await vscode.window.showInputBox({
 		prompt: 'Enter Model Name (default: Nemotron-70B)',
 		placeHolder: 'Nemotron-70B',
 		value: settings?.modelName || '',
 		ignoreFocusOut: true
 	});
-
 	const updatedApiUrl = `${apiUrl}?command=chatgpt`;
 	settings = {
 		apiUrl: updatedApiUrl,
@@ -199,7 +211,6 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 		credentials: authMethod.label === 'Username/Password' ? credentials : '',
 		authType: authMethod.label === 'API Key' ? 'apiKey' : 'credentials'
 	};
-
 	const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
 	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
 	vscode.window.showInformationMessage('Settings saved successfully!');
@@ -210,7 +221,6 @@ async function sendApiRequest(message: string): Promise<string> {
 	if (!settings) {
 		throw new Error('Settings not configured');
 	}
-
 	try {
 		const requestBody = {
 			"model": settings.modelName || "Nemotron-70B",
@@ -236,7 +246,6 @@ async function sendApiRequest(message: string): Promise<string> {
 				? `Bearer ${settings.apiKey}`
 				: `Basic ${settings.credentials}`
 		};
-
 		const response = await fetch(settings.apiUrl, {
 			method: 'POST',
 			headers,
@@ -289,158 +298,35 @@ async function sendApiRequest(message: string): Promise<string> {
 		throw error;
 	}
 }
-// Create the webview content, including the chat UI and message handling logic
-function getWebviewContent() {
-	return `
-		<!DOCTYPE html>
-		<html lang="en">
-		<head>
-			<meta charset="UTF-8">
-			<meta name="viewport" content="width=device-width, initial-scale=1.0">
-			<title>Ozeki AI Chat</title>
-			<style>
-				body {
-					padding: 20px;
-					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
-					margin: 0;
-					background-color: var(--vscode-editor-background);
-					color: var(--vscode-editor-foreground);
-				}
-				#chat-container {
-					height: calc(100vh - 140px);
-					overflow-y: auto;
-					border: 1px solid var(--vscode-widget-border);
-					border-radius: 8px;
-					padding: 16px;
-					margin-bottom: 16px;
-					background-color: var(--vscode-editor-background);
-				}
-				#input-container {
-					display: flex;
-					gap: 12px;
-					padding: 8px;
-					background-color: var(--vscode-editor-background);
-					border: 1px solid var(--vscode-widget-border);
-					border-radius: 8px;
-				}
-				#message-input {
-					flex-grow: 1;
-					padding: 12px;
-					border: none;
-					border-radius: 4px;
-					background-color: var(--vscode-input-background);
-					color: var(--vscode-input-foreground);
-					font-size: 14px;
-					outline: none;
-				}
-				#message-input:focus {
-					outline: 1px solid var(--vscode-focusBorder);
-				}
-				#send-button {
-					padding: 8px 20px;
-					background-color: var(--vscode-button-background);
-					color: var(--vscode-button-foreground);
-					border: none;
-					border-radius: 4px;
-					cursor: pointer;
-					font-weight: 500;
-					transition: background-color 0.2s;
-				}
-				#send-button:hover {
-					background-color: var(--vscode-button-hoverBackground);
-				}
-				.message {
-					margin-bottom: 16px;
-					padding: 12px;
-					border-radius: 8px;
-					max-width: 80%;
-					word-wrap: break-word;
-				}
-				.user-message {
-					background-color: var(--vscode-button-background);
-					color: var(--vscode-button-foreground);
-					margin-left: auto;
-				}
-				.assistant-message {
-					background-color: var(--vscode-editor-inactiveSelectionBackground);
-					color: var(--vscode-editor-foreground);
-					margin-right: auto;
-				}
-				.message-time {
-					font-size: 12px;
-					color: var(--vscode-descriptionForeground);
-					margin-top: 4px;
-					text-align: right;
-				}
-			</style>
-		</head>
-		<body>
-			<div id="chat-container">
-				<div class="message assistant-message">
-					Hello! I'm your AI assistant. How can I help you today?
-				</div>
-			</div>
-			<div id="input-container">
-				<input type="text" 
-					id="message-input" 
-					placeholder="Type your message..." 
-					autofocus
-				>
-				<button id="send-button">Send</button>
-			</div>
-			<script>
-				const vscode = acquireVsCodeApi();
-				const chatContainer = document.getElementById('chat-container');
-				const messageInput = document.getElementById('message-input');
-				const sendButton = document.getElementById('send-button');
 
-				function addMessage(content, isUser = false) {
-					const messageDiv = document.createElement('div');
-					messageDiv.className = 'message ' + (isUser ? 'user-message' : 'assistant-message');
-					messageDiv.textContent = content;
-					chatContainer.appendChild(messageDiv);
-					chatContainer.scrollTop = chatContainer.scrollHeight;
-				}
+// Add this function to show the rating window
+function showRatingWindow(context: vscode.ExtensionContext, logger: ChatLogger) {
+	const panel = vscode.window.createWebviewPanel(
+		'ozekiAIRating',
+		'Rate Your Chat Experience',
+		vscode.ViewColumn.Two,
+		{
+			enableScripts: true,
+			retainContextWhenHidden: false
+		}
+	);
 
-				function handleSend() {
-					const message = messageInput.value.trim();
-					if (message) {
-						addMessage(message, true);
-						messageInput.value = '';
-						vscode.postMessage({ type: 'message', text: message });
-						// Disable input while waiting for response
-						messageInput.disabled = true;
-						sendButton.disabled = true;
-					}
-				}
+	panel.webview.html = getRatingWebviewContent();
 
-				// Handle responses from the extension
-				window.addEventListener('message', event => {
-					const message = event.data;
-					switch (message.type) {
-						case 'response':
-							addMessage(message.text, false);
-							// Re-enable input after receiving response
-							messageInput.disabled = false;
-							sendButton.disabled = false;
-							messageInput.focus();
-							break;
-					}
-				});
-
-				messageInput.addEventListener('keypress', (e) => {
-					if (e.key === 'Enter' && !e.shiftKey) {
-						e.preventDefault();
-						handleSend();
-					}
-				});
-
-				sendButton.addEventListener('click', handleSend);
-			</script>
-		</body>
-		</html>
-	`;
+	panel.webview.onDidReceiveMessage(
+		async message => {
+			if (message.type === 'submit-rating') {
+				logger.logRating(message.rating, message.feedback);
+				vscode.window.showInformationMessage('Thank you for your feedback!');
+				panel.dispose();
+			}
+		},
+		undefined,
+		context.subscriptions
+	);
 }
+
 export function deactivate() {
+
 	console.log('Now inactive!');
 }
