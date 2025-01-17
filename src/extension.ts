@@ -6,11 +6,13 @@ interface Settings {
 	apiUrl: string;
 	apiKey: string;
 	modelName: string;
+	credentials?: string;
+	authType: 'apiKey' | 'credentials';
 }
 
 let settings: Settings | null = null;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
 	console.log('Ozeki Ai is now active!');
 
 	// Check if the global storage folder exists, if not create it
@@ -25,23 +27,31 @@ export function activate(context: vscode.ExtensionContext) {
 	const settingsPath = path.join(globalStoragePath, 'settings.json');
 	if (!fs.existsSync(settingsPath)) {
 		console.log('No settings.json file found, creating a new one.');
-		const defaultSettings = { apiUrl: '', apiKey: '', modelName: '' };
-		fs.writeFileSync(settingsPath, JSON.stringify(defaultSettings, null, 2));
+		const defaultSettings = '';
+		fs.writeFileSync(settingsPath, defaultSettings);
 		console.log('Created new settings.json file');
 		console.log('Settings path:', settingsPath);
 	}
 
-	// Load settings from settings.json file, or get input from user
+	// Load settings from settings.json file
 	try {
 		const fileContent = fs.readFileSync(settingsPath, 'utf8');
 		settings = JSON.parse(fileContent);
-		console.log('Settings loaded from file:', settings);
+		// Validate
+		if (settings && settings.apiUrl && (settings.apiKey || settings.credentials)) {
+			console.log('Valid settings loaded from file');
+		} else {
+			console.log('Invalid or incomplete settings, showing dialog');
+			await showSettingsDialog(context);
+		}
 	} catch (error) {
-		console.error('Failed to load settings:', error);
+		console.log('Failed to load settings.');
+		await showSettingsDialog(context);
 	}
 
 	const createChatPanel = async () => {
-		if (!settings || !settings.apiUrl || !settings.apiKey) {
+		// Only show settings dialog if settings are missing or invalid
+		if (!settings || !settings.apiUrl || (!settings.apiKey && !settings.credentials)) {
 			await showSettingsDialog(context);
 		}
 
@@ -84,28 +94,94 @@ export function activate(context: vscode.ExtensionContext) {
 	createChatPanel();
 }
 
-// Show settings dialog to configure API URL, API Key, model name and save them to settings.json
+// Show settings dialog to configure API URL, API Key/credentials, model name and save them to settings.json
 async function showSettingsDialog(context: vscode.ExtensionContext) {
-	const apiUrl = await vscode.window.showInputBox({
-		prompt: 'Enter API URL',
-		placeHolder: 'https://api.example.com/chat?',
-		value: settings?.apiUrl || '',
-		ignoreFocusOut: true
-	});
+	const authMethod = await vscode.window.showQuickPick(
+		[
+			{ label: 'API Key', description: 'Authenticate using an API key' },
+			{ label: 'Username/Password', description: 'Authenticate using username and password' }
+		],
+		{
+			placeHolder: 'Select authentication method',
+			ignoreFocusOut: true
+		}
+	);
 
-	if (!apiUrl) {
-		throw new Error('API URL is required');
+	if (!authMethod) {
+		return;
 	}
 
-	const apiKey = await vscode.window.showInputBox({
-		prompt: 'Enter API Key',
-		placeHolder: 'your-api-key',
-		value: settings?.apiKey || '',
-		ignoreFocusOut: true
-	});
+	let apiUrl = '';
+	while (!apiUrl) {
+		apiUrl = await vscode.window.showInputBox({
+			prompt: 'Enter API URL',
+			placeHolder: 'https://api.example.com/chat',
+			value: settings?.apiUrl || '',
+			ignoreFocusOut: true
+		}) || '';
 
-	if (!apiKey) {
-		throw new Error('API Key is required');
+		if (!apiUrl) {
+			const retry = await vscode.window.showErrorMessage('API URL is required', 'Try Again', 'Cancel');
+			if (retry !== 'Try Again') {
+				return;
+			}
+		}
+	}
+
+	let apiKey = '', credentials = '';
+
+	if (authMethod.label === 'API Key') {
+		while (!apiKey) {
+			apiKey = await vscode.window.showInputBox({
+				prompt: 'Enter API Key',
+				placeHolder: 'your-api-key',
+				value: settings?.apiKey || '',
+				ignoreFocusOut: true
+			}) || '';
+
+			if (!apiKey) {
+				const retry = await vscode.window.showErrorMessage('API Key is required', 'Try Again', 'Cancel');
+				if (retry !== 'Try Again') {
+					return;
+				}
+			}
+		}
+	} else {
+		let username = '', password = '';
+		while (!username || !password) {
+			if (!username) {
+				username = await vscode.window.showInputBox({
+					prompt: 'Enter Username',
+					placeHolder: 'your-username',
+					ignoreFocusOut: true
+				}) || '';
+
+				if (!username) {
+					const retry = await vscode.window.showErrorMessage('Username is required', 'Try Again', 'Cancel');
+					if (retry !== 'Try Again') {
+						return;
+					}
+					continue;
+				}
+			}
+
+			if (!password) {
+				password = await vscode.window.showInputBox({
+					prompt: 'Enter Password',
+					placeHolder: 'your-password',
+					password: true,
+					ignoreFocusOut: true
+				}) || '';
+
+				if (!password) {
+					const retry = await vscode.window.showErrorMessage('Password is required', 'Try Again', 'Cancel');
+					if (retry !== 'Try Again') {
+						return;
+					}
+				}
+			}
+		}
+		credentials = Buffer.from(`${username}:${password}`).toString('base64');
 	}
 
 	const modelName = await vscode.window.showInputBox({
@@ -115,19 +191,21 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 		ignoreFocusOut: true
 	});
 
-	const updatedApiUrl = `${apiUrl}command=chatgpt`;
+	const updatedApiUrl = `${apiUrl}?command=chatgpt`;
 	settings = {
 		apiUrl: updatedApiUrl,
-		apiKey,
-		modelName: modelName || 'Nemotron-70B'
+		apiKey: authMethod.label === 'API Key' ? apiKey : '',
+		modelName: modelName || 'Nemotron-70B',
+		credentials: authMethod.label === 'Username/Password' ? credentials : '',
+		authType: authMethod.label === 'API Key' ? 'apiKey' : 'credentials'
 	};
+
 	const settingsPath = path.join(context.globalStorageUri.fsPath, 'settings.json');
 	fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
-	console.log('Settings saved to:', settingsPath);
 	vscode.window.showInformationMessage('Settings saved successfully!');
 }
 
-// Send a message to the API and return the response, formatted the response
+// Send a message to the API and return formatted the response
 async function sendApiRequest(message: string): Promise<string> {
 	if (!settings) {
 		throw new Error('Settings not configured');
@@ -152,13 +230,16 @@ async function sendApiRequest(message: string): Promise<string> {
 
 		console.log('Sending request to:', settings.apiUrl);
 		console.log('Request body:', JSON.stringify(requestBody, null, 2));
+		const headers = {
+			'Content-Type': 'application/json',
+			'Authorization': settings.authType === 'apiKey'
+				? `Bearer ${settings.apiKey}`
+				: `Basic ${settings.credentials}`
+		};
 
 		const response = await fetch(settings.apiUrl, {
 			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${settings.apiKey}`
-			},
+			headers,
 			body: JSON.stringify(requestBody)
 		});
 
