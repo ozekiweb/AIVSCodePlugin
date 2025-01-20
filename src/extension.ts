@@ -105,7 +105,6 @@ export async function activate(context: vscode.ExtensionContext) {
 	let disposable = vscode.commands.registerCommand('ozeki-ai.startChat', createChatPanel);
 	let settingsCommand = vscode.commands.registerCommand('ozeki-ai.settings', showSettingsDialog);
 	context.subscriptions.push(disposable, settingsCommand);
-	createChatPanel();
 }
 
 // Show settings dialog to configure API URL, API Key/credentials, model name and save them to settings.json
