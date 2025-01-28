@@ -46,7 +46,7 @@ Here are the steps to how to use the extension:
 ![start chatting with ai](resources/ozeki-ai-chat.png)
 
 ## How to install the extension from the github repository:
-### Step 1 
+### Step 1
 **Download the repository from Github**
 ![download repository](resources/download-repository.png)
 ### Step 2
@@ -58,13 +58,13 @@ Here are the steps to how to use the extension:
 npm install -g vsce
 ```
 ![download vsce](resources/download-vsce.png)
-### Step 4 
+### Step 4
 **Package the extension using VSCE, so we can install the packaged file locally.**
 ```
 vsce package
 ```
 ![package extension](resources/package-extension.png)
-### Step 5 
+### Step 5
 **Install the extension locally, by pressing CTRL + SHIFT + P, and selecting "Extensions: Install from VSIX".**
 ![install locally](resources/install-locally.png)
 
