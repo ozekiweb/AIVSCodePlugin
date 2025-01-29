@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { getWebviewContent } from './chatBox';
 import { ChatLogger } from './chatLogger';
 import { getRatingWebviewContent } from './ratingWindow';
+import { AutoCompleteProvider } from './autoComplete';
 
 interface Settings {
 	apiUrl: string;
@@ -104,6 +105,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	let disposable = vscode.commands.registerCommand('ozeki-ai.startChat', createChatPanel);
 	let settingsCommand = vscode.commands.registerCommand('ozeki-ai.settings', showSettingsDialog);
+
+	// Register the autocomplete provider
+	const provider = new AutoCompleteProvider(settings);
+	context.subscriptions.push(provider);
 	context.subscriptions.push(disposable, settingsCommand);
 }
 
@@ -128,7 +133,7 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 	while (!apiUrl) {
 		apiUrl = await vscode.window.showInputBox({
 			prompt: 'Enter API URL',
-			placeHolder: 'https://api.example.com/chat',
+			placeHolder: 'https://api.example.com/chat?action=chatgpt',
 			value: settings?.apiUrl || '',
 			ignoreFocusOut: true
 		}) || '';
@@ -202,9 +207,8 @@ async function showSettingsDialog(context: vscode.ExtensionContext) {
 		value: settings?.modelName || '',
 		ignoreFocusOut: true
 	});
-	const updatedApiUrl = `${apiUrl}?command=chatgpt`;
 	settings = {
-		apiUrl: updatedApiUrl,
+		apiUrl: apiUrl,
 		apiKey: authMethod.label === 'API Key' ? apiKey : '',
 		modelName: modelName || 'Nemotron-70B',
 		credentials: authMethod.label === 'Username/Password' ? credentials : '',

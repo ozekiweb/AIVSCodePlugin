@@ -15,15 +15,52 @@
     "Other"
   ],
   "icon": "resources/ozeki-logo.png",
-  "activationEvents": [],
+  "activationEvents": ["onStartupFinished"],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
         "command": "ozeki-ai.startChat",
         "title": "Start Ozeki AI Chat"
+      },
+      {
+        "command": "ozeki-ai.acceptSuggestion",
+        "title": "Accept AI Suggestion"
+      },
+      {
+        "command": "ozeki-ai.toggleAutoComplete",
+        "title": "Toggle AI Code Completion",
+        "icon": "$(lightbulb)"
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Ozeki AI",
+      "properties": {
+        "ozeki-ai.enableAutoComplete": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable AI code completion"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "ozeki-ai.acceptSuggestion",
+        "key": "ctrl+space",
+        "mac": "cmd+space",
+        "when": "editorTextFocus"
+      }
+    ],
+    "statusBar": {
+      "items": [
+        {
+          "id": "autoCompleteStatus",
+          "name": "AI Code Completion Status",
+          "alignment": "right",
+          "command": "ozeki-ai.toggleAutoComplete"
+        }
+      ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
