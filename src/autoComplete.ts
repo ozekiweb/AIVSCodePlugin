@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import axios from 'axios';
 
 interface OllamaResponse {
     response: string;
@@ -13,6 +14,7 @@ export class AutoCompleteProvider {
     private lastSuggestion: string = '';
     private enabled: boolean = true;
     private statusBarItem: vscode.StatusBarItem;
+    private isAccepting: boolean = false;
 
     constructor(settings: any) {
         this.settings = settings;
@@ -76,33 +78,30 @@ export class AutoCompleteProvider {
         // Store current position
         this.lastPosition = editor.selection.active;
 
-        // Set new timeout
         this.timeout = setTimeout(async () => {
             await this.provideSuggestion(editor);
-        }, 4000);
+        }, 1000);
     }
 
     private async provideSuggestion(editor: vscode.TextEditor) {
         if (!this.lastPosition) return;
 
-        const document = editor.document;
-        const textBeforeCursor = document.getText(new vscode.Range(
-            new vscode.Position(0, 0),
-            this.lastPosition
-        ));
-
         try {
-            const suggestion = await this.getCodeSuggestion(textBeforeCursor);
-            if (suggestion) {
+            const suggestion = await this.getCodeSuggestion('');
+            if (suggestion && suggestion.trim()) {
                 this.lastSuggestion = suggestion;
+
+                // Show notification as ghost text
                 editor.setDecorations(this.decorationType, [{
                     range: new vscode.Range(
-                        this.lastPosition,
-                        this.lastPosition
+                        editor.selection.active,
+                        editor.selection.active
                     ),
                     renderOptions: {
                         after: {
-                            contentText: suggestion
+                            contentText: "Suggestion is ready, press CTRL + SPACE to apply",
+                            color: { id: 'editorGhostText.foreground' },
+                            fontStyle: 'italic'
                         }
                     }
                 }]);
@@ -114,17 +113,24 @@ export class AutoCompleteProvider {
 
     private async acceptSuggestion() {
         const editor = vscode.window.activeTextEditor;
-        if (!editor || !this.lastPosition) return;
+        if (!editor || !this.lastPosition || this.isAccepting) return;
 
-        const currentPos = editor.selection.active;
-        const ghostText = this.lastSuggestion;
+        try {
+            this.isAccepting = true;
+            const currentPos = editor.selection.active;
+            const ghostText = this.lastSuggestion;
 
-        if (ghostText) {
-            await editor.edit(editBuilder => {
-                editBuilder.insert(currentPos.translate(0, currentPos.character), ghostText);
-            });
+            if (ghostText) {
+                await editor.edit(editBuilder => {
+                    // Insert newline first, then the suggestion
+                    editBuilder.insert(currentPos, '\n' + ghostText);
+                });
+                this.lastSuggestion = '';
+            }
+            editor.setDecorations(this.decorationType, []);
+        } finally {
+            this.isAccepting = false;
         }
-        editor.setDecorations(this.decorationType, []);
     }
 
     private async getCodeSuggestion(context: string): Promise<string> {
@@ -147,25 +153,40 @@ export class AutoCompleteProvider {
 
         const requestBody = {
             model: "qwen2.5-coder:1.5b",
-            prompt: `${prefix_code}`,
-            suffix: `${suffix_code}`,
-            stream: false
+            system: "You are Qwen, an autocompletion assistant, when you receive an incomplete code you try to predict the missing code, using the the incomplete code. You are a professional so you don't waste time explaining.",
+            prompt: `${prefix_code}${suffix_code}`,
+            temperature: 0.1,
+            max_tokens:30,
+            stream: false,
+            stop: ["#", "//","```"]
         };
 
-        const response = await fetch('http://localhost:11434/api/generate', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        });
+        console.log('Sending request with body:', JSON.stringify(requestBody, null, 2));
 
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
+        try {
+            const response = await axios.post('http://localhost:11434/api/generate', requestBody, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log('Received response:', JSON.stringify(response.data, null, 2));
+            
+            let suggestion = response.data.response || '';
+            
+            // Remove code fence and language identifier
+            suggestion = suggestion
+                .replace(/^```\w*\n?/, '')  // Remove opening fence with optional language
+                .replace(/```$/, '')         // Remove closing fence
+                .trim();
+
+            return suggestion;
+        } catch (error) {
+            if (axios.isAxiosError(error)) {
+                console.error('API error:', error.response?.status, error.response?.data);
+            }
+            throw error;
         }
-
-        const data = await response.json() as OllamaResponse;
-        return data.response || '';
     }
 
     dispose() {
