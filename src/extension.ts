@@ -5,6 +5,7 @@ import { getWebviewContent } from './chatBox';
 import { ChatLogger } from './chatLogger';
 import { getRatingWebviewContent } from './ratingWindow';
 import { AutoCompleteProvider } from './autoComplete';
+import { PromptGenerator } from './generatePrompt';
 
 interface Settings {
 	apiUrl: string;
@@ -109,6 +110,10 @@ export async function activate(context: vscode.ExtensionContext) {
 	// Register the autocomplete provider
 	const provider = new AutoCompleteProvider(settings);
 	context.subscriptions.push(provider);
+
+	const promptGenerator = new PromptGenerator(settings);
+	context.subscriptions.push(promptGenerator);
+
 	context.subscriptions.push(disposable, settingsCommand);
 }
 

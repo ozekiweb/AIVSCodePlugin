@@ -33,6 +33,10 @@
         "command": "ozeki-ai.toggleAutoComplete",
         "title": "Toggle AI Code Completion",
         "icon": "$(lightbulb)"
+      },
+      {
+        "command": "ozeki-ai.generateFromPrompt",
+        "title": "Generate Code from Prompt"
       }
     ],
     "configuration": {

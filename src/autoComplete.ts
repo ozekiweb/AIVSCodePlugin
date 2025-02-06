@@ -122,7 +122,6 @@ export class AutoCompleteProvider {
 
             if (ghostText) {
                 await editor.edit(editBuilder => {
-                    // Insert newline first, then the suggestion
                     editBuilder.insert(currentPos, '\n' + ghostText);
                 });
                 this.lastSuggestion = '';
@@ -141,11 +140,22 @@ export class AutoCompleteProvider {
         const editor = vscode.window.activeTextEditor;
         if (!editor || !this.lastPosition) return '';
 
+        // Create axios instance 
+        const api = axios.create({
+            baseURL: 'http://localhost:11434',
+            timeout: 10000,  
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
         const document = editor.document;
         const prefix_code = document.getText(new vscode.Range(
             new vscode.Position(0, 0),
             this.lastPosition
         ));
+
+        // Only get suffix if needed
         const suffix_code = document.getText(new vscode.Range(
             this.lastPosition,
             document.lineAt(document.lineCount - 1).range.end
@@ -153,34 +163,18 @@ export class AutoCompleteProvider {
 
         const requestBody = {
             model: "qwen2.5-coder:1.5b",
-            system: "You are Qwen, an autocompletion assistant, when you receive an incomplete code you try to predict the missing code, using the the incomplete code. You are a professional so you don't waste time explaining.",
+            system: "You are a code completion assistant. Complete the code concisely.",
             prompt: `${prefix_code}${suffix_code}`,
             temperature: 0.1,
-            max_tokens:30,
+            max_tokens: 30,
             stream: false,
-            stop: ["#", "//","```"]
+            stop: ["#", "//", "```"],
+            cache: true 
         };
 
-        console.log('Sending request with body:', JSON.stringify(requestBody, null, 2));
-
         try {
-            const response = await axios.post('http://localhost:11434/api/generate', requestBody, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            console.log('Received response:', JSON.stringify(response.data, null, 2));
-            
-            let suggestion = response.data.response || '';
-            
-            // Remove code fence and language identifier
-            suggestion = suggestion
-                .replace(/^```\w*\n?/, '')  // Remove opening fence with optional language
-                .replace(/```$/, '')         // Remove closing fence
-                .trim();
-
-            return suggestion;
+            const { data } = await api.post('/api/generate', requestBody);
+            return (data.response || '').replace(/^```\w*\n?/, '').replace(/```$/, '').trim();
         } catch (error) {
             if (axios.isAxiosError(error)) {
                 console.error('API error:', error.response?.status, error.response?.data);
